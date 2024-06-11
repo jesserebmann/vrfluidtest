@@ -1,0 +1,76 @@
+﻿#pragma kernel ClearTSB
+#pragma kernel CalculateTSB
+
+StructuredBuffer<int> triangles;
+StructuredBuffer<float4> vertices;
+
+RWStructuredBuffer<int3> normals;
+
+uint vertexCount;
+uint triangleCount;
+
+
+// helper function for atomic add
+/*void AtomicAddFloat(int indexIntoDeltaPos, float newDeltaVal, int axis) 
+{
+    uint i_val = asuint(newDeltaVal);
+    uint tmp0 = 0;
+    uint tmp1;
+
+    [allow_uav_condition]
+    while (true) 
+    {
+        InterlockedCompareExchange(normals[indexIntoDeltaPos][axis], tmp0, i_val, tmp1);
+
+        if (tmp1 == tmp0) {
+            break;
+        }
+
+        tmp0 = tmp1;
+        i_val = asuint(newDeltaVal + asfloat(tmp1));
+    }
+
+    return;
+}*/
+
+[numthreads(128, 1, 1)]
+void ClearTSB (uint3 id : SV_DispatchThreadID) 
+{
+    unsigned int i = id.x;
+
+    if (i >= vertexCount) return;
+
+    normals[i] = int3(0,0,0);
+}
+
+
+[numthreads(128, 1, 1)]
+void CalculateTSB (uint3 id : SV_DispatchThreadID) 
+{
+    unsigned int i = id.x;
+
+    if (i >= triangleCount) return;
+
+    int i1 = triangles[i*3];
+    int i2 = triangles[i*3+1];
+    int i3 = triangles[i*3+2];
+
+    float4 v1 = vertices[i1];
+    float4 v2 = vertices[i2];
+    float4 v3 = vertices[i3];
+
+    int3 n = cross(v2 - v1, v3 - v2) * 100000;
+    
+    InterlockedAdd(normals[i1].x, n.x); 
+    InterlockedAdd(normals[i1].y, n.y);
+    InterlockedAdd(normals[i1].z, n.z);
+
+    InterlockedAdd(normals[i2].x, n.x);
+    InterlockedAdd(normals[i2].y, n.y);
+    InterlockedAdd(normals[i2].z, n.z);
+
+    InterlockedAdd(normals[i3].x, n.x);
+    InterlockedAdd(normals[i3].y, n.y);
+    InterlockedAdd(normals[i3].z, n.z);
+   
+}
